@@ -190,7 +190,7 @@ def load_tfid_model():
 def load_model():
     global newsgroups_train, texts, corpus_tfidf, corpus_lsi
     logging.info("*** Start loading model ***")
-    create_data_path_if_not_exit()
+
     newsgroups_train = fetch_20newsgroups(subset='train', remove=('headers', 'footers', 'quotes'))
     texts = get_data()
     load_dict()
@@ -251,11 +251,12 @@ def find_top_n_articles():
 
 if __name__ == '__main__':
     process_args()
+    create_data_path_if_not_exit()
     load_model()
     load_index()
 
     if query:
         project_query_to_lsi_space()
         find_top_n_articles()
-        # pprint(top_articles)
+        pprint(top_articles)
         pass
