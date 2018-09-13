@@ -3,3 +3,7 @@ numpy
 scipy
 gensim
 google_compute_engine
+flask
+flask-jsonpify
+flask-sqlalchemy
+flask-restful
