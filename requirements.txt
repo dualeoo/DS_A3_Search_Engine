@@ -1,3 +1,5 @@
 sklearn
 numpy
 scipy
+gensim
+google_compute_engine
