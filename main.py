@@ -1,7 +1,10 @@
 import argparse
+import collections
 import logging
+from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from pprint import pprint
+from typing import List, Tuple
 
 from gensim import corpora, models, similarities
 from sklearn.datasets import fetch_20newsgroups
@@ -11,153 +14,181 @@ import config
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 
-def create_data_path_if_not_exit():
-    data_dir_path = Path(config.DATA_PATH)
-    if not data_dir_path.exists():
-        data_dir_path.mkdir()
+class IQueryable:
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def find_top_n_articles(self, query: str) -> List[Tuple[str, float]]: raise NotImplementedError
 
 
-def load_newsgroup_dict() -> corpora.dictionary:
-    dictionary = corpora.Dictionary()
-    return dictionary.load(config.NEWSGROUP_DICT_PATH)
+class LoadModel(IQueryable):
+    def create_data_path_if_not_exit(self):
+        data_dir_path = Path(self.data_path)
+        if not data_dir_path.exists():
+            data_dir_path.mkdir()
+
+    @staticmethod
+    def get_data(newsgroups_train):
+        return [[word for word in document.lower().split()] for document in newsgroups_train.data]
+
+    def __init__(self,
+                 newsgroup_dict_path: str = config.NEWSGROUP_DICT_PATH,
+                 no_below: int = config.NO_BELOW,
+                 no_above: float = config.NO_ABOVE,
+                 corpus_path: str = config.CORPUS_PATH,
+                 lsi_model_path: str = config.LSI_MODEL_PATH,
+                 num_topics: int = config.NUM_TOPICS,
+                 tfid_model_path: str = config.TFID_MODEL_PATH,
+                 to_remove_from_train: tuple = ('headers', 'footers', 'quotes'),
+                 index_path=config.INDEX_PATH,
+                 num_result_to_take=config.NUM_SEARCH_RESULTS_TAKE,
+                 data_path=config.DATA_PATH) -> None:
+        self.data_path = data_path
+        self.num_result_to_take = num_result_to_take
+        self.index_path = index_path
+        self.query_arg = config.QUERY_ARG
+        self.to_remove_from_train = to_remove_from_train
+        self.tfid_model_path = tfid_model_path
+        self.num_topics = num_topics
+        self.lsi_model_path = lsi_model_path
+        self.corpus_path = corpus_path
+        self.no_above = no_above
+        self.no_below = no_below
+        self.newsgroup_dict_path = newsgroup_dict_path
+        self.create_data_path_if_not_exit()
+
+        logging.info("*** Start loading model ***")
+        self.newsgroups_train = fetch_20newsgroups(subset='train', remove=self.to_remove_from_train)
+        self.texts = self.get_data(self.newsgroups_train)
+        self.corpora_dict = self.load_dict()
+        self.corpus = self.load_corpus(self.corpora_dict, self.texts)
+        self.tfidf = self.load_tfid_model(self.corpus)
+        self.corpus_tfidf = self.tfidf[self.corpus]
+        self.lsi = self.load_lsi_model(self.corpus_tfidf, self.corpora_dict)
+        self.corpus_lsi = self.lsi[self.corpus_tfidf]
+        self.index = self._load_index()
+
+    def load_dict(self):
+        logging.info("*** Start loading dictionary ***")
+        dict_path = Path(self.newsgroup_dict_path)
+        if dict_path.exists():
+            corpora_dict = self.load_newsgroup_dict()
+        else:
+            # frequency = calculate_token_freq(texts)
+            # texts = [[token for token in text if frequency[token] > 1]
+            #          for text in texts]
+            corpora_dict = self.convert_data_to_dict(self.texts)
+            # TODOx look inside
+            corpora_dict = self.preprocess_dict(corpora_dict)
+            corpora_dict.save(self.newsgroup_dict_path)
+        return corpora_dict
+
+    def load_newsgroup_dict(self):
+        # TODOx decouple
+        dictionary = corpora.Dictionary()
+        return dictionary.load(self.newsgroup_dict_path)
+
+    @staticmethod
+    def convert_data_to_dict(texts) -> corpora.Dictionary:
+        # TODOx decouple
+        dictionary = corpora.Dictionary(texts)
+        return dictionary
+
+    def preprocess_dict(self, dictionary: corpora.Dictionary) -> corpora.Dictionary:
+        # TODOx decouple
+        dictionary.filter_n_most_frequent(5)
+        # fixmeX when NO_BELOW or NO_ABOVE change, this will not automatically recreate dict
+        dictionary.filter_extremes(no_below=self.no_below, no_above=self.no_above)
+        return dictionary
+
+    def load_corpus(self, corpora_dict, texts):
+        logging.info("*** Start loading corpus ***")
+        corpus_path = Path(self.corpus_path)
+        if corpus_path.exists():
+            corpus = corpora.MmCorpus(self.corpus_path)
+        else:
+            corpus = [corpora_dict.doc2bow(text) for text in texts]
+            corpora.MmCorpus.serialize(self.corpus_path, corpus)
+        return corpus
+
+    def load_lsi_model(self, corpus_tfidf, corpora_dict):
+        logging.info("*** Start loading LSI model ***")
+        lsi_model_path = Path(self.lsi_model_path)
+        if lsi_model_path.exists():
+            lsi = models.LsiModel.load(self.lsi_model_path)
+        else:
+            lsi = models.LsiModel(corpus_tfidf, id2word=corpora_dict,
+                                  num_topics=self.num_topics)  # initialize an LSI transformation
+            lsi.save(self.lsi_model_path)
+        return lsi
+
+    def load_tfid_model(self, corpus):
+        logging.info("*** Start loading tfid model ***")
+        tfid_model_path = Path(self.tfid_model_path)
+        if tfid_model_path.exists():
+            tfidf = models.TfidfModel.load(self.tfid_model_path)
+        else:
+            tfidf = models.TfidfModel(corpus)
+            tfidf.save(self.tfid_model_path)
+        return tfidf
+
+    def _load_index(self):
+        logging.info("*** Start loading index ***")
+        index_path = Path(self.index_path)
+        if index_path.exists():
+            index = similarities.MatrixSimilarity.load(self.index_path)
+        else:
+            # fixmeX the case when NUM_TOPICS change
+            index = similarities.MatrixSimilarity(self.corpus_lsi, num_features=self.num_topics)
+            index.save(self.index_path)
+        return index
+
+    def project_query_to_lsi_space(self, query: str):
+        logging.info("*** Start project query to LSI space ***")
+        vec_bow = self.corpora_dict.doc2bow(query.lower().split())
+        vec_lsi = self.lsi[vec_bow]
+        return vec_lsi
+
+    def _find_top_n_results(self, index, vec_lsi):
+        sims = index[vec_lsi]
+        sims = sorted(enumerate(sims), key=lambda item: -item[1])
+        top_results = sims[slice(0, self.num_result_to_take)]
+        return top_results
+
+    def find_top_n_articles(self, query: str):
+        logging.info("*** Start finding top articles ***")
+        top_results = self._find_top_n_results(self.index, self.project_query_to_lsi_space(query))
+        top_articles = []
+        for result in top_results:
+            article_id = result[0]
+            article_score = result[1]
+
+            article = self.newsgroups_train.data[article_id]
+            top_articles.append((article, float(article_score)))
+        return top_articles
 
 
-def convert_data_to_dict():
-    dictionary = corpora.Dictionary(texts)
-    return dictionary
+Argument = collections.namedtuple("Argument", "query debug port")
 
 
-def preprocess_dict(dictionary):
-    dictionary.filter_n_most_frequent(5)
-    # fixme, when NO_BELOW or NO_ABOVE change, this will not automatically recreate dict
-    dictionary.filter_extremes(no_below=config.NO_BELOW, no_above=config.NO_ABOVE)
-    return dictionary
-
-
-def get_data():
-    return [[word for word in document.lower().split()] for document in newsgroups_train.data]
-
-
-def load_dict():
-    global corpora_dict
-    logging.info("*** Start loading dictionary ***")
-    dict_path = Path(config.NEWSGROUP_DICT_PATH)
-    if dict_path.exists():
-        corpora_dict = load_newsgroup_dict()
-    else:
-        # frequency = calculate_token_freq(texts)
-        # texts = [[token for token in text if frequency[token] > 1]
-        #          for text in texts]
-        corpora_dict = convert_data_to_dict()
-        # TODOx look inside
-        corpora_dict = preprocess_dict(corpora_dict)
-        corpora_dict.save(config.NEWSGROUP_DICT_PATH)
-
-
-def load_corpus():
-    global corpus
-    logging.info("*** Start loading corpus ***")
-    corpus_path = Path(config.CORPUS_PATH)
-    if corpus_path.exists():
-        corpus = corpora.MmCorpus(config.CORPUS_PATH)
-    else:
-        corpus = [corpora_dict.doc2bow(text) for text in texts]
-        corpora.MmCorpus.serialize(config.CORPUS_PATH, corpus)
-
-
-def load_lsi_model():
-    global lsi
-    logging.info("*** Start loading LSI model ***")
-    lsi_model_path = Path(config.LSI_MODEL_PATH)
-    if lsi_model_path.exists():
-        lsi = models.LsiModel.load(config.LSI_MODEL_PATH)
-    else:
-        lsi = models.LsiModel(corpus_tfidf, id2word=corpora_dict,
-                              num_topics=config.NUM_TOPICS)  # initialize an LSI transformation
-        lsi.save(config.LSI_MODEL_PATH)
-
-
-def load_tfid_model():
-    global tfidf
-    logging.info("*** Start loading tfid model ***")
-    tfid_model_path = Path(config.TFID_MODEL_PATH)
-    if tfid_model_path.exists():
-        tfidf = models.TfidfModel.load(config.TFID_MODEL_PATH)
-    else:
-        tfidf = models.TfidfModel(corpus)
-        tfidf.save(config.TFID_MODEL_PATH)
-
-
-def load_model():
-    global newsgroups_train, texts, corpus_tfidf, corpus_lsi
-    logging.info("*** Start loading model ***")
-
-    newsgroups_train = fetch_20newsgroups(subset='train', remove=('headers', 'footers', 'quotes'))
-    texts = get_data()
-    load_dict()
-    load_corpus()
-    load_tfid_model()
-    corpus_tfidf = tfidf[corpus]
-    load_lsi_model()
-    corpus_lsi = lsi[corpus_tfidf]  # create a double wrapper over the original corpus: bow->tfidf->fold-in-lsi
-
-
-def process_args():
-    global query
+def process_args() -> Argument:
     logging.info("Start processing args")
     parser = argparse.ArgumentParser()
-    parser.add_argument("--query", )
+    parser.add_argument(config.QUERY_ARG)
+    parser.add_argument(config.DEBUG_ARG, default=False)
+    parser.add_argument(config.PORT_ARG, default=config.DEFAULT_PORT)
     args = parser.parse_args()
     query = args.query
-
-
-def load_index():
-    global index
-    logging.info("*** Start loading index ***")
-    index_path = Path(config.INDEX_PATH)
-    if index_path.exists():
-        index = similarities.MatrixSimilarity.load(config.INDEX_PATH)
-    else:
-        # fixme the case when NUM_TOPICS change
-        index = similarities.MatrixSimilarity(corpus_lsi, num_features=config.NUM_TOPICS)
-        index.save(config.INDEX_PATH)
-
-
-def project_query_to_lsi_space():
-    global vec_lsi
-    logging.info("*** Start project query to LSI space ***")
-    vec_bow = corpora_dict.doc2bow(query.lower().split())
-    vec_lsi = lsi[vec_bow]
-
-
-def find_top_n_results():
-    global top_results
-    sims = index[vec_lsi]
-    sims = sorted(enumerate(sims), key=lambda item: -item[1])
-    top_results = sims[slice(0, config.NUM_SEARCH_RESULTS_TAKE)]
-
-
-def find_top_n_articles():
-    global top_articles
-    logging.info("*** Start finding top articles ***")
-    find_top_n_results()
-    top_articles = []
-    for result in top_results:
-        article_id = result[0]
-        article_score = result[1]
-
-        article = newsgroups_train.data[article_id]
-        top_articles.append((article, article_score))
+    debug = args.debug
+    port = args.port
+    return Argument(query=query, debug=debug, port=port)
 
 
 if __name__ == '__main__':
-    process_args()
-    create_data_path_if_not_exit()
-    load_model()
-    load_index()
+    load_model = LoadModel()
+    args = process_args()
 
-    if query:
-        project_query_to_lsi_space()
-        find_top_n_articles()
+    if args.query:
+        top_articles = load_model.find_top_n_articles(args.query)
         pprint(top_articles)
         pass
