@@ -168,7 +168,11 @@ class LoadModel(IQueryable):
         return top_articles
 
 
-Argument = collections.namedtuple("Argument", "query debug port")
+Argument = collections.namedtuple("Argument", "query debug port host")
+
+
+def argument_to_string(argument: Argument):
+    return "query=%s\tdebug=%s\tport=%s\thost=%s" % (argument.query, argument.debug, argument.port, argument.host)
 
 
 def process_args() -> Argument:
@@ -177,11 +181,15 @@ def process_args() -> Argument:
     parser.add_argument(config.QUERY_ARG)
     parser.add_argument(config.DEBUG_ARG, default=False)
     parser.add_argument(config.PORT_ARG, default=config.DEFAULT_PORT)
+    parser.add_argument(config.HOST_ARG, default=config.DEFAULT_HOST)
     args = parser.parse_args()
     query = args.query
     debug = args.debug
     port = args.port
-    return Argument(query=query, debug=debug, port=port)
+    host = args.host
+    argument = Argument(query=query, debug=debug, port=port, host=host)
+    logging.info('Argument used in this run = "%s"' % argument_to_string(argument))
+    return argument
 
 
 if __name__ == '__main__':

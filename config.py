@@ -13,5 +13,7 @@ INDEX_PATH = '%s/%s.index' % CORE_PATH
 REMOVE_FROM_TRAIN_DATA = ('headers', 'footers', 'quotes')
 QUERY_ARG = "--query"
 DEBUG_ARG = "--debug"
+HOST_ARG = "--host"
 PORT_ARG = "--port"
 DEFAULT_PORT = 5000
+DEFAULT_HOST = '0.0.0.0'
