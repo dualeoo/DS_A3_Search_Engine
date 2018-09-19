@@ -179,7 +179,7 @@ def process_args() -> Argument:
     logging.info("Start processing args")
     parser = argparse.ArgumentParser()
     parser.add_argument(config.QUERY_ARG)
-    parser.add_argument(config.DEBUG_ARG, default=False)
+    parser.add_argument(config.DEBUG_ARG, default=False, action='store_true')
     parser.add_argument(config.PORT_ARG, default=config.DEFAULT_PORT)
     parser.add_argument(config.HOST_ARG, default=config.DEFAULT_HOST)
     args = parser.parse_args()

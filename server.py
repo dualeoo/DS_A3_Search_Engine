@@ -23,7 +23,7 @@ class Articles(Resource):
         return articles
 
 
-api.add_resource(Articles, '/<query>')  # Route_1
+api.add_resource(Articles, '/search/<query>')  # Route_1
 
 if __name__ == '__main__':
     args = process_args()
