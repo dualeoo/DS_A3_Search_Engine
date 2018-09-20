@@ -8,3 +8,4 @@ flask-jsonpify
 flask-sqlalchemy
 flask-restful
 flask-cors
+google-python-cloud-debugger
