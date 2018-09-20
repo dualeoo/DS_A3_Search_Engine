@@ -28,7 +28,7 @@ class LoadModel(IQueryable):
             data_dir_path.mkdir()
 
     @staticmethod
-    def get_data(newsgroups_train):
+    def get_data(newsgroups_train) -> List[List[str]]:
         return [[word for word in document.lower().split()] for document in newsgroups_train.data]
 
     def __init__(self,
@@ -68,7 +68,7 @@ class LoadModel(IQueryable):
         self.corpus_lsi = self.lsi[self.corpus_tfidf]
         self.index = self._load_index()
 
-    def load_dict(self):
+    def load_dict(self) -> corpora.Dictionary:
         logging.info("*** Start loading dictionary ***")
         dict_path = Path(self.newsgroup_dict_path)
         if dict_path.exists():
@@ -101,7 +101,7 @@ class LoadModel(IQueryable):
         dictionary.filter_extremes(no_below=self.no_below, no_above=self.no_above)
         return dictionary
 
-    def load_corpus(self, corpora_dict, texts):
+    def load_corpus(self, corpora_dict: corpora.Dictionary, texts: List[List[str]]) -> List[Tuple[int, int]]:
         logging.info("*** Start loading corpus ***")
         corpus_path = Path(self.corpus_path)
         if corpus_path.exists():
@@ -122,7 +122,7 @@ class LoadModel(IQueryable):
             lsi.save(self.lsi_model_path)
         return lsi
 
-    def load_tfid_model(self, corpus):
+    def load_tfid_model(self, corpus: List[Tuple[int, int]]) -> models.tfidfmodel.TfidfModel:
         logging.info("*** Start loading tfid model ***")
         tfid_model_path = Path(self.tfid_model_path)
         if tfid_model_path.exists():
