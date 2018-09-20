@@ -17,3 +17,5 @@ HOST_ARG = "--host"
 PORT_ARG = "--port"
 DEFAULT_PORT = 5000
 DEFAULT_HOST = '0.0.0.0'
+PROJECT_NAME = 'zalo-ai-challenge'
+DEFAULT_BUCKET_NAME = '%s.appspot.com' % PROJECT_NAME

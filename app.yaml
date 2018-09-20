@@ -1,5 +1,5 @@
-runtime: python36
-api_version: 1.0.3
+runtime: python37
+api_version: 1.0.4
 
 handlers:
 - url: /search/.*
