@@ -9,7 +9,10 @@ from engine import IQueryable, LoadModel, process_args
 try:
     import googleclouddebugger
 
-    googleclouddebugger.enable()
+    googleclouddebugger.enable(
+        module='API server',
+        version='1'
+    )
 except ImportError:
     pass
 
@@ -32,6 +35,7 @@ class Articles(Resource):
 
 api.add_resource(Articles, '/search/<query>')  # Route_1
 
-args = process_args()
-logging.info("*** Start running server ***")
-app.run(debug=args.debug, port=args.port, host=args.host)
+if __name__ == '__main__':
+    args = process_args()
+    logging.info("*** Start running server ***")
+    app.run(debug=args.debug, port=args.port, host=args.host)
