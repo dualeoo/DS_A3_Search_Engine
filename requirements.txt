@@ -10,3 +10,4 @@ flask-restful
 flask-cors
 google-python-cloud-debugger
 google-cloud-storage
+gunicorn
