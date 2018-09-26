@@ -12,7 +12,7 @@ resources:
   memory_gb: 12
   disk_size_gb: 15
 
-api_version: 1.0.5
+api_version: 1.0.6
 
 handlers:
 - url: /search/.*

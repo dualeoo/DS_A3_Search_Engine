@@ -11,9 +11,10 @@ try:
 
     googleclouddebugger.enable(
         module='API server',
-        version='1'
+        version='1.0.6'
     )
-except ImportError:
+except ImportError as e:
+    print('Failed to import Google Cloud Debugger: %s' % str(e))
     pass
 
 app = Flask(__name__)
