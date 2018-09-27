@@ -20,3 +20,5 @@ data/
 .idea/
 *.md
 filter_firewall_trace.py
+helloworld/
+versioning/
