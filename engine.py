@@ -159,10 +159,11 @@ class LoadModel(IQueryable):
         logging.info("*** Start finding top articles ***")
         top_results = self._find_top_n_results(self.index, self.project_query_to_lsi_space(query))
         top_articles = []
-        for result in top_results:
+        for index, result in enumerate(top_results):
             article_id = result[0]
             article_score = result[1]
-
+            if index == 0 and article_score == 0:
+                break
             article = self.newsgroups_train.data[article_id]
             top_articles.append((article, float(article_score)))
         return top_articles
