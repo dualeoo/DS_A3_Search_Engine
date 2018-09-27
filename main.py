@@ -34,7 +34,8 @@ class Articles(Resource):
         return articles
 
 
-api.add_resource(Articles, '/search/<query>')  # Route_1
+# fixmeX this new change makes the client code break.
+api.add_resource(Articles, '/v1/search/<query>')  # Route_1
 
 if __name__ == '__main__':
     args = process_args()
